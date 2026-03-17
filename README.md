@@ -2,6 +2,151 @@
 
 A production-grade, mobile-first personal finance management system with real-time Slack notifications, AI-powered insights via Claude Sonnet, and microservices backend on AWS.
 
+---
+
+## System Architecture
+
+```
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                     PERSONAL FINANCE TRACKER — ARCHITECTURE                     ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            MOBILE CLIENT (Flutter)                           │
+│   ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────────────┐  │
+│   │  Auth/Login │  │  Dashboard   │  │Transactions│  │  AI Insights     │  │
+│   │   Screen    │  │  Overview    │  │  + Receipt │  │  Screen          │  │
+│   └──────┬──────┘  └──────┬───────┘  └─────┬──────┘  └────────┬─────────┘  │
+│          └────────────────┴────────────────┴─────────────────┘              │
+│                              Flutter HTTP Client (Dio)                       │
+│                              JWT Token interceptor                           │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTPS
+                                       ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         AWS API GATEWAY (Single Entry Point)                  │
+│                     Rate Limiting │ Request Routing │ CORS                   │
+└───┬──────────┬──────────┬─────────┬─────────┬───────────────┬───────────────┘
+    │          │          │         │         │               │
+    ▼          ▼          ▼         ▼         ▼               ▼
+┌────────┐ ┌────────┐ ┌───────┐ ┌────────┐ ┌──────────┐ ┌────────┐
+│  USER  │ │ TRANS  │ │BUDGET │ │ANALYT- │ │NOTIFIC-  │ │   AI   │
+│SERVICE │ │SERVICE │ │SERVICE│ │ICS SVC │ │ATION SVC │ │SERVICE │
+│:8081   │ │:8082   │ │:8083  │ │:8084   │ │:8085     │ │:8086   │
+│        │ │        │ │       │ │        │ │          │ │        │
+│• Auth  │ │• CRUD  │ │• CRUD │ │• Stats │ │• Slack   │ │• Claude│
+│• JWT   │ │• S3    │ │• Mon- │ │• Rpts  │ │• Push    │ │  API   │
+│• Cogn- │ │  Upload│ │  itor │ │• Score │ │• Schedul-│ │• Insig-│
+│  ito   │ │• Tags  │ │• SQS  │ │• Pred  │ │  ed Jobs │ │  hts   │
+└───┬────┘ └───┬────┘ └──┬────┘ └───┬────┘ └────┬─────┘ └───┬────┘
+    └──────────┴──────────┴──────────┴────────────┴───────────┘
+                                    │
+           ┌─────────────────────────────────────────────────┐
+           │              SHARED INFRASTRUCTURE               │
+           │                                                  │
+           │  ┌──────────────────┐    ┌─────────────────────┐│
+           │  │  AWS RDS         │    │  AWS ElastiCache     ││
+           │  │  PostgreSQL 15   │    │  Redis 7             ││
+           │  │                  │    │                      ││
+           │  │  • users         │    │  • JWT blacklist     ││
+           │  │  • transactions  │    │  • Session cache     ││
+           │  │  • budgets       │    │  • Rate limiting     ││
+           │  │  • analytics     │    │  • Fraud detection   ││
+           │  │  • slack_config  │    │  • AI response cache ││
+           │  └──────────────────┘    └─────────────────────┘│
+           │                                                  │
+           │  ┌──────────────────┐    ┌─────────────────────┐│
+           │  │  AWS S3          │    │  AWS SQS             ││
+           │  │                  │    │                      ││
+           │  │  • receipts/     │    │  • budget-alerts     ││
+           │  │  • profile-pics/ │    │  • notifications     ││
+           │  │  • reports/      │    │  • weekly-reports    ││
+           │  └──────────────────┘    └─────────────────────┘│
+           └─────────────────────────────────────────────────┘
+```
+
+---
+
+## Data Flow — How a Transaction Works End-to-End
+
+```
+  Flutter App
+      │  POST /api/transactions (+ optional receipt image)
+      ▼
+  Transaction Service (:8082)
+      │  1. Validate JWT token
+      │  2. Run velocity/fraud check via Redis counter
+      │  3. Save transaction to PostgreSQL
+      │  4. Upload receipt to AWS S3 (if attached)
+      │  5. Publish event → SQS: budget-alerts queue
+      ▼
+  Budget Service (:8083)  ← SQS consumer (polls every 10s)
+      │  6. Look up active budgets for that category
+      │  7. Increment spentAmount
+      │  8. If usage ≥ alert threshold → publish → SQS: notifications queue
+      ▼
+  Notification Service (:8085)  ← SQS consumer (polls every 10s)
+      │  9. Dispatch Slack DM:  "⚠️ 80% of Food & Dining budget used"
+      │     or:                 "🚨 Food budget exceeded!"
+      └── 10. Log notification to PostgreSQL
+```
+
+---
+
+## Slack Integration Flow
+
+```
+  User types: /balance  (in Slack)
+      │
+      ▼
+  Slack API  →  POST /api/v1/slack/commands
+      │
+  Notification Service (:8085)
+      │  1. Verify HMAC-SHA256 signature (replay-attack safe, 5-min window)
+      │  2. Parse slash command
+      │  3. Fetch data from Analytics/Budget services
+      │  4. Build Block Kit response with progress bars
+      ▼
+  Slack DM  ←  Rich formatted message returned instantly
+```
+
+Available slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/balance` | Current month income vs expenses vs net balance |
+| `/budget` | All budgets with usage bars and remaining amounts |
+| `/spending` | Category breakdown of this month's expenses |
+
+---
+
+## AI Insights Flow
+
+```
+  Flutter App — AI Insights screen
+      │  POST /api/v1/ai/spending-analysis
+      ▼
+  AI Service (:8086)
+      │  1. Check Redis cache (60-min TTL per prompt hash)
+      │  2. Cache miss → build context prompt with user's 30-day data
+      │  3. Call Claude Sonnet API (claude-3-5-sonnet-20241022)
+      │  4. Parse response → store in Redis cache
+      ▼
+  Flutter App  ←  Insight text rendered on screen
+```
+
+Available AI endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /ai/spending-analysis` | 30-day spending pattern analysis |
+| `POST /ai/budget-recommendations` | 50/30/20 rule comparison & suggestions |
+| `POST /ai/unusual-spending` | Flags categories >50% above average |
+| `POST /ai/health-score` | Financial health score 0–100 with action items |
+| `POST /ai/ask` | Free-form financial Q&A (not cached) |
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -31,13 +176,8 @@ A production-grade, mobile-first personal finance management system with real-ti
 
 ### 1. Clone the Repository
 ```bash
-echo "# personal_finance_tracker" >> README.md
-git init
-git add README.md
-git commit -m "first commit"
-git branch -M main
-git remote add origin https://github.com/meetpateldev18/personal_finance_tracker.git
-git push -u origin main
+git clone https://github.com/meetpateldev18/personal_finance_tracker.git
+cd personal_finance_tracker
 ```
 
 ### 2. Configure Environment Variables
@@ -176,15 +316,29 @@ personal_finance_tracker/
 
 ## CI/CD Pipeline
 
-Push to `main` triggers:
-1. Unit tests on all services
-2. Build Docker images
-3. Push to AWS ECR
-4. Deploy to AWS ECS Fargate
-5. Smoke tests
-6. Slack notification on deploy success/failure
+```
+  git push origin main
+      │
+      ▼
+  GitHub Actions
+      │
+      ├─ [Test]       Run unit tests for all 6 services in parallel
+      │                (postgres + redis spun up as service containers)
+      │
+      ├─ [Build]      mvn package -DskipTests  →  docker build
+      │                Push image to AWS ECR  (tag: short SHA)
+      │
+      ├─ [Deploy]     Update ECS task definition with new image
+      │                Roll out to AWS ECS Fargate (one service at a time)
+      │                Wait for service stability / auto-rollback on failure
+      │
+      ├─ [Smoke]      curl /actuator/health on all 6 services
+      │                Retry 5× with 10s back-off
+      │
+      └─ [Notify]     Slack webhook  →  ✅ Success  or  ❌ Failure
+```
 
-See [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml) for details.
+See [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml) for the full workflow definition.
 
 ---
 
