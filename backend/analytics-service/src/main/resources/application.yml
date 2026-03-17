@@ -1,0 +1,39 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: analytics-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:financedb}
+    username: ${POSTGRES_USER:financeuser}
+    password: ${POSTGRES_PASSWORD:financepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redispass}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_256bit_random_string_for_production}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,0 +1,46 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: ai-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:financedb}
+    username: ${POSTGRES_USER:financeuser}
+    password: ${POSTGRES_PASSWORD:financepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redispass}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_256bit_random_string_for_production}
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: claude-3-5-sonnet-20241022
+  max-tokens: 1024
+  # Cache AI responses in Redis for 1 hour to reduce API costs
+  cache-ttl-minutes: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,0 +1,47 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: budget-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:financedb}
+    username: ${POSTGRES_USER:financeuser}
+    password: ${POSTGRES_PASSWORD:financepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redispass}
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_256bit_random_string_for_production}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  access-key: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
+  sqs:
+    budget-alert-queue: ${AWS_SQS_BUDGET_ALERT_QUEUE:}
+    notification-queue: ${AWS_SQS_NOTIFICATION_QUEUE:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

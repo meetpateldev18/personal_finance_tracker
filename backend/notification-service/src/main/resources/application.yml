@@ -1,0 +1,45 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:financedb}
+    username: ${POSTGRES_USER:financeuser}
+    password: ${POSTGRES_PASSWORD:financepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_256bit_random_string_for_production}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  access-key: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
+  sqs:
+    notification-queue: ${AWS_SQS_NOTIFICATION_QUEUE:}
+
+slack:
+  bot-token: ${SLACK_BOT_TOKEN:}
+  signing-secret: ${SLACK_SIGNING_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

@@ -1,0 +1,62 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:financedb}
+    username: ${POSTGRES_USER:financeuser}
+    password: ${POSTGRES_PASSWORD:financepass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+  jpa:
+    hibernate:
+      ddl-auto: validate   # schema managed by schema.sql
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redispass}
+      timeout: 2000ms
+
+jwt:
+  secret: ${JWT_SECRET:change_me_to_a_256bit_random_string_for_production}
+  expiry-minutes: ${JWT_EXPIRY_MINUTES:60}
+  refresh-expiry-days: ${JWT_REFRESH_EXPIRY_DAYS:30}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  access-key: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
+  cognito:
+    user-pool-id: ${AWS_COGNITO_USER_POOL_ID:}
+    client-id: ${AWS_COGNITO_CLIENT_ID:}
+
+# Security: limit login attempt brute force via Redis
+security:
+  max-login-attempts: 5
+  lockout-duration-minutes: 15
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
